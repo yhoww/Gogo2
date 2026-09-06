@@ -538,7 +538,6 @@
     let isDragging = false;
     let activeDrawers = {};
 
-    // ระบบประวัติ Undo (เก็บสูงสุด 20 ขั้นตอน)
     let undoStack = [];
     const MAX_HISTORY = 20;
 
@@ -549,17 +548,13 @@
         round: currentSetRound
       };
       undoStack.push(currentState);
-      if (undoStack.length > MAX_HISTORY) {
-        undoStack.shift();
-      }
+      if (undoStack.length > MAX_HISTORY) undoStack.shift();
       updateUndoButtonState();
     }
 
     function updateUndoButtonState() {
       let btn = document.getElementById("undoBtn");
-      if (btn) {
-        btn.disabled = undoStack.length === 0;
-      }
+      if (btn) btn.disabled = undoStack.length === 0;
     }
 
     function undoAction() {
@@ -575,7 +570,6 @@
       updateUndoButtonState();
     }
 
-    // รองรับคีย์ลัด Ctrl + Z
     window.addEventListener('keydown', function(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (!isEditing && document.activeElement.tagName !== 'INPUT') {
@@ -688,11 +682,8 @@
     }
 
     function toggleZoneVisibility(zoneName, isVisible) {
-      if (isVisible) {
-        hiddenZones = hiddenZones.filter(z => z !== zoneName);
-      } else {
-        if (!hiddenZones.includes(zoneName)) hiddenZones.push(zoneName);
-      }
+      if (isVisible) hiddenZones = hiddenZones.filter(z => z !== zoneName);
+      else if (!hiddenZones.includes(zoneName)) hiddenZones.push(zoneName);
       localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
     }
 
@@ -723,9 +714,7 @@
       renderApp(true);
     }
 
-    function checkEnter(e) {
-      if (e.key === 'Enter') addTimer();
-    }
+    function checkEnter(e) { if (e.key === 'Enter') addTimer(); }
 
     function parseTimeInput(input) {
       let totalSeconds = 0;
@@ -759,7 +748,6 @@
       }
 
       pushHistory();
-
       let zoneItems = timersData.filter(t => t.zone === zone);
       let maxOrder = zoneItems.length > 0 ? Math.max(...zoneItems.map(t => t.orderIndex || 0)) + 1 : 0;
 
@@ -777,7 +765,6 @@
       labelInput.value = "";
       timeInput.value = "";
       labelInput.focus();
-
       saveDataToFirebase();
       renderApp(true);
     }
@@ -841,9 +828,7 @@
             if (index !== -1) {
               pushHistory();
               zonesData[index] = newZoneName;
-              timersData.forEach(t => {
-                if (t.zone === oldZoneName) t.zone = newZoneName;
-              });
+              timersData.forEach(t => { if (t.zone === oldZoneName) t.zone = newZoneName; });
               if (hiddenZones.includes(oldZoneName)) {
                 hiddenZones = hiddenZones.map(z => z === oldZoneName ? newZoneName : z);
                 localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
@@ -856,7 +841,6 @@
         renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
-
       element.replaceWith(input);
       input.focus();
       input.select();
@@ -867,7 +851,6 @@
       let isOpen = activeDrawers[id];
       activeDrawers = {};
       activeDrawers[id] = !isOpen;
-      
       document.querySelectorAll('.card-drawer').forEach(drawer => drawer.classList.remove('show'));
       let targetDrawer = document.getElementById('drawer-' + id);
       if (targetDrawer && activeDrawers[id]) targetDrawer.classList.add('show');
@@ -887,7 +870,6 @@
       if (!timer) return;
 
       pushHistory();
-
       let now = Date.now();
       let currentEndTime = timer.endTime && timer.endTime > now ? timer.endTime : now;
       let newEndTime = currentEndTime + (secondsToAdd * 1000);
@@ -902,7 +884,6 @@
         timer.expiredAt = null;
         timer.finalRank = null;
       }
-
       saveDataToFirebase();
       renderApp(true);
     }
@@ -929,7 +910,6 @@
         renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
-
       element.replaceWith(input);
       input.focus();
       input.select();
@@ -967,7 +947,6 @@
         renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
-
       element.replaceWith(input);
       input.focus();
       input.select();
@@ -998,12 +977,10 @@
       if (!draggedTimer) return;
 
       pushHistory();
-
       draggedTimer.zone = targetZone;
 
       let zoneListEl = e.currentTarget.querySelector('.timer-list');
       let cards = Array.from(zoneListEl.querySelectorAll('.timer-card'));
-      
       cards.forEach((card, index) => {
         let cardId = card.dataset.id;
         let t = timersData.find(item => item.id == cardId);
@@ -1038,26 +1015,20 @@
           let rect = c.getBoundingClientRect();
           return touch.clientY < rect.top + rect.height / 2;
         });
-
-        if (nextCard) {
-          targetList.insertBefore(touchCard, nextCard);
-        } else {
-          targetList.appendChild(touchCard);
-        }
+        if (nextCard) targetList.insertBefore(touchCard, nextCard);
+        else targetList.appendChild(touchCard);
       }
     }
 
     function handleTouchEnd(e) {
       if (!touchCard) return;
       touchCard.classList.remove('dragging');
-      
       pushHistory();
 
       let zoneListEl = touchCard.closest('.timer-list');
       if (zoneListEl) {
         let zoneDiv = zoneListEl.closest('.zone-section');
         let targetZone = zoneDiv ? zoneDiv.dataset.zoneName : null;
-        
         let draggedTimer = timersData.find(t => t.id == draggedCardId);
         if (draggedTimer && targetZone) draggedTimer.zone = targetZone;
 
@@ -1157,18 +1128,21 @@
         let displayTime = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 
         let targetTimeString = "00:00:00";
+        let expiredTimeString = "00:00:00";
+        
         if (isActive) {
           let endDate = new Date(timer.endTime);
-          let endHours = String(endDate.getHours()).padStart(2, "0");
-          let endMinutes = String(endDate.getMinutes()).padStart(2, "0");
-          let endSeconds = String(endDate.getSeconds()).padStart(2, "0");
-          targetTimeString = `${endHours}:${endMinutes}:${endSeconds}`;
+          targetTimeString = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}:${String(endDate.getSeconds()).padStart(2, "0")}`;
+        } else if (timer.expiredAt !== null) {
+          let expiredDate = new Date(timer.expiredAt);
+          expiredTimeString = `${String(expiredDate.getHours()).padStart(2, "0")}:${String(expiredDate.getMinutes()).padStart(2, "0")}:${String(expiredDate.getSeconds()).padStart(2, "0")}`;
         }
 
         let displayEl = cardEl.querySelector('.timer-display');
         let targetEl = cardEl.querySelector('.target-time');
+        
         if (displayEl) displayEl.innerText = isActive ? displayTime : '00:00';
-        if (targetEl) targetEl.innerText = isActive ? targetTimeString : '00:00:00';
+        if (targetEl) targetEl.innerText = isActive ? targetTimeString : expiredTimeString;
 
         cardEl.className = "timer-card";
         if (isActive) {
@@ -1189,9 +1163,7 @@
         opt.innerText = z;
         zoneSelect.appendChild(opt);
       });
-      if (zonesData.includes(currentSelectedZone)) {
-        zoneSelect.value = currentSelectedZone;
-      }
+      if (zonesData.includes(currentSelectedZone)) zoneSelect.value = currentSelectedZone;
 
       let zonesContainer = document.getElementById("zonesContainer");
       zonesContainer.innerHTML = "";
@@ -1205,15 +1177,11 @@
           let aActive = a.endTime !== null && Date.now() < a.endTime;
           let bActive = b.endTime !== null && Date.now() < b.endTime;
 
-          if (aActive && bActive) {
-            return a.endTime - b.endTime;
-          }
+          if (aActive && bActive) return a.endTime - b.endTime;
           if (aActive && !bActive) return -1;
           if (!aActive && bActive) return 1;
 
-          if (a.finalRank !== null && b.finalRank !== null) {
-            return a.finalRank - b.finalRank;
-          }
+          if (a.finalRank !== null && b.finalRank !== null) return a.finalRank - b.finalRank;
           return (a.orderIndex || 0) - (b.orderIndex || 0);
         });
 
@@ -1255,10 +1223,10 @@
             let targetTimeString = "00:00:00";
             if (isActive) {
               let endDate = new Date(timer.endTime);
-              let endHours = String(endDate.getHours()).padStart(2, "0");
-              let endMinutes = String(endDate.getMinutes()).padStart(2, "0");
-              let endSeconds = String(endDate.getSeconds()).padStart(2, "0");
-              targetTimeString = `${endHours}:${endMinutes}:${endSeconds}`;
+              targetTimeString = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}:${String(endDate.getSeconds()).padStart(2, "0")}`;
+            } else if (timer.expiredAt !== null) {
+              let expiredDate = new Date(timer.expiredAt);
+              targetTimeString = `${String(expiredDate.getHours()).padStart(2, "0")}:${String(expiredDate.getMinutes()).padStart(2, "0")}:${String(expiredDate.getSeconds()).padStart(2, "0")}`;
             }
 
             let rankBadgeHtml = '';
@@ -1303,7 +1271,7 @@
               <div class="timer-row">
                 <span class="timer-display">${isActive ? displayTime : '00:00'}</span>
                 <span style="font-size: 12px; opacity: 0.7;">หมด:</span>
-                <span class="target-time" onclick="makeEditableTime(${timer.id}, this)" title="คลิกเพื่อแก้ไขเวลา">${isActive ? targetTimeString : '00:00:00'}</span>
+                <span class="target-time" onclick="makeEditableTime(${timer.id}, this)" title="คลิกเพื่อแก้ไขเวลา">${targetTimeString}</span>
               </div>
               <div class="card-drawer ${isDrawerOpen}" id="drawer-${timer.id}">
                 <button class="drawer-btn plus" onclick="adjustTime(${timer.id}, 1)">+1s</button>
