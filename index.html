@@ -128,7 +128,20 @@
     .settings-btn:hover, .undo-btn:hover { background: #23272b; }
     .undo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    .set-indicator-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .round-color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
     .set-indicator { font-size: 15px; font-weight: bold; }
+
     .btn-group {
       display: flex;
       gap: 6px;
@@ -294,13 +307,19 @@
     }
     .drag-handle:active { cursor: grabbing; }
 
+    .rank-badges-container {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .rank-badge {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: #fff;
-      padding: 2px 8px;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      padding: 2px 6px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
 
     .timer-label {
@@ -463,7 +482,10 @@
       <div class="left-controls">
         <button class="settings-btn" onclick="openSettingsModal()" title="ตั้งค่าการแสดงผลโซน">⚙️</button>
         <button class="undo-btn" id="undoBtn" onclick="undoAction()" title="ย้อนกลับ (Ctrl + Z)" disabled>↩️</button>
-        <span class="set-indicator" id="setIndicatorText">📦 รอบที่ 1</span>
+        <div class="set-indicator-wrapper">
+          <span class="round-color-dot" id="roundColorDot"></span>
+          <span class="set-indicator" id="setIndicatorText">📦 รอบที่ 1</span>
+        </div>
       </div>
       <div class="btn-group">
         <button class="prev-set-btn" onclick="startPrevSet()">◀️ ย้อนกลับ</button>
@@ -521,21 +543,21 @@
     }
 
     const defaultTimersData = [
-      { id: 1, label: "ปั้มเก่า", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 0 },
-      { id: 2, label: "ใต้ตึก", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 1 },
-      { id: 3, label: "บอท", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 2 },
-      { id: 4, label: "บ้านใหญ่", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 3 },
-      { id: 5, label: "คูก้า", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 4 },
-      { id: 6, label: "CJ", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone B", orderIndex: 0 },
-      { id: 7, label: "ข้างCJ", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone B", orderIndex: 1 },
-      { id: 8, label: "เมก้ามอ", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone B", orderIndex: 2 },
-      { id: 9, label: "บ้านสระน้ำ", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone B", orderIndex: 3 },
-      { id: 10, label: "หลังปั้ม", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 0 },
-      { id: 11, label: "รถถัง", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 1 },
-      { id: 12, label: "โรเจ้อ", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 2 },
-      { id: 13, label: "ทราย", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 3 },
-      { id: 14, label: "ข้างทราย", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 4 },
-      { id: 15, label: "กล่อง", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone C", orderIndex: 5 }
+      { id: 1, label: "ปั้มเก่า", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone A", orderIndex: 0 },
+      { id: 2, label: "ใต้ตึก", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone A", orderIndex: 1 },
+      { id: 3, label: "บอท", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone A", orderIndex: 2 },
+      { id: 4, label: "บ้านใหญ่", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone A", orderIndex: 3 },
+      { id: 5, label: "คูก้า", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone A", orderIndex: 4 },
+      { id: 6, label: "CJ", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone B", orderIndex: 0 },
+      { id: 7, label: "ข้างCJ", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone B", orderIndex: 1 },
+      { id: 8, label: "เมก้ามอ", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone B", orderIndex: 2 },
+      { id: 9, label: "บ้านสระน้ำ", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone B", orderIndex: 3 },
+      { id: 10, label: "หลังปั้ม", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 0 },
+      { id: 11, label: "รถถัง", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 1 },
+      { id: 12, label: "โรเจ้อ", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 2 },
+      { id: 13, label: "ทราย", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 3 },
+      { id: 14, label: "ข้างทราย", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 4 },
+      { id: 15, label: "กล่อง", endTime: null, expiredAt: null, ranks: {}, roundId: 1, zone: "Zone C", orderIndex: 5 }
     ];
 
     let defaultZones = ["Zone A", "Zone B", "Zone C"];
@@ -549,6 +571,19 @@
 
     let undoStack = [];
     const MAX_HISTORY = 20;
+
+    const setColors = ["#6f42c1", "#007bff", "#28a745", "#fd7e14", "#e83e8c", "#17a2b8", "#ffc107"];
+
+    function getSetColor(roundId) {
+      let index = (roundId - 1) % setColors.length;
+      return setColors[index];
+    }
+
+    function updateRoundIndicatorUI() {
+      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      let dotColor = getSetColor(currentSetRound);
+      document.getElementById("roundColorDot").style.backgroundColor = dotColor;
+    }
 
     function pushHistory() {
       let currentState = {
@@ -573,7 +608,7 @@
       zonesData = prevState.zones;
       currentSetRound = prevState.round;
       
-      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      updateRoundIndicatorUI();
       saveDataToFirebase();
       renderApp(true);
       updateUndoButtonState();
@@ -623,7 +658,11 @@
         if (data) {
           timersData = data.timers || JSON.parse(JSON.stringify(defaultTimersData));
           timersData.forEach((t, index) => {
-            if (t.finalRank === undefined) t.finalRank = null;
+            if (!t.ranks) t.ranks = {};
+            if (t.finalRank !== undefined && t.finalRank !== null) {
+              t.ranks[t.roundId || 1] = t.finalRank;
+              delete t.finalRank;
+            }
             if (t.expiredAt === undefined) t.expiredAt = null;
             if (t.orderIndex === undefined) t.orderIndex = index;
           });
@@ -635,7 +674,7 @@
           currentSetRound = 1;
           saveDataToFirebase();
         }
-        document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+        updateRoundIndicatorUI();
         renderApp(true);
       });
     }
@@ -664,9 +703,10 @@
         timersData.forEach(t => {
           t.endTime = null;
           t.expiredAt = null;
-          t.finalRank = null;
+          t.ranks = {};
           t.roundId = 1;
         });
+        updateRoundIndicatorUI();
         saveDataToFirebase();
         renderApp(true);
       }
@@ -696,17 +736,10 @@
       localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
     }
 
-    const setColors = ["#6f42c1", "#007bff", "#28a745", "#fd7e14", "#e83e8c", "#17a2b8", "#ffc107"];
-
-    function getSetColor(roundId) {
-      let index = (roundId - 1) % setColors.length;
-      return setColors[index];
-    }
-
     function startNewSet() {
       pushHistory();
       currentSetRound++;
-      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      updateRoundIndicatorUI();
       saveDataToFirebase();
     }
 
@@ -718,7 +751,7 @@
         alert("นี่คือรอบแรกสุดแล้ว");
         return;
       }
-      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      updateRoundIndicatorUI();
       saveDataToFirebase();
       renderApp(true);
     }
@@ -765,13 +798,12 @@
         label: label,
         endTime: getServerTime() + (totalSeconds * 1000),
         expiredAt: null,
-        finalRank: null,
+        ranks: {},
         roundId: currentSetRound,
         zone: zone,
         orderIndex: maxOrder
       });
 
-      // จัดเรียงลำดับให้อัตโนมัติทันทีตามเวลาที่ใกล้จะหมดก่อน เมื่อมีการใส่เวลาใหม่
       autoSortZoneByTime(zone);
 
       labelInput.value = "";
@@ -907,12 +939,13 @@
       if (newEndTime <= sTime) {
         timer.endTime = null;
         timer.expiredAt = null;
-        timer.finalRank = null;
+        if (timer.ranks) delete timer.ranks[timer.roundId];
       } else {
         timer.roundId = currentSetRound;
         timer.endTime = newEndTime;
         timer.expiredAt = null;
-        timer.finalRank = null;
+        if (!timer.ranks) timer.ranks = {};
+        delete timer.ranks[currentSetRound];
       }
       autoSortZoneByTime(timer.zone);
       saveDataToFirebase();
@@ -962,15 +995,15 @@
         if (val === "" || val === "0" || val === "00:00") {
           timer.endTime = null;
           timer.expiredAt = null;
-          timer.finalRank = null;
-          timer.roundId = currentSetRound;
+          if (timer.ranks) delete timer.ranks[timer.roundId];
         } else {
           let newSeconds = parseTimeInput(val);
           if (newSeconds > 0) {
             timer.roundId = currentSetRound;
             timer.endTime = getServerTime() + (newSeconds * 1000);
             timer.expiredAt = null;
-            timer.finalRank = null;
+            if (!timer.ranks) timer.ranks = {};
+            delete timer.ranks[currentSetRound];
           }
         }
         autoSortZoneByTime(timer.zone);
@@ -1086,6 +1119,7 @@
       let stateChanged = false;
       
       timersData.forEach(timer => {
+        if (!timer.ranks) timer.ranks = {};
         if (timer.endTime !== null) {
           if (sTime >= timer.endTime) {
             if (!timer.expiredAt) {
@@ -1093,16 +1127,15 @@
               stateChanged = true;
             }
           } else {
-            if (timer.expiredAt !== null || timer.finalRank !== null) {
+            if (timer.expiredAt !== null || timer.ranks[timer.roundId] !== undefined) {
               timer.expiredAt = null; 
-              timer.finalRank = null;
+              delete timer.ranks[timer.roundId];
               stateChanged = true;
             }
           }
         } else {
-          if (timer.expiredAt !== null || timer.finalRank !== null) {
+          if (timer.expiredAt !== null) {
             timer.expiredAt = null;
-            timer.finalRank = null;
             stateChanged = true;
           }
         }
@@ -1110,9 +1143,10 @@
 
       if (stateChanged) {
         let roundGroups = {};
-        timersData.filter(t => t.expiredAt !== null && t.roundId === currentSetRound).forEach(t => {
-          if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
-          roundGroups[t.roundId].push(t);
+        timersData.filter(t => t.expiredAt !== null).forEach(t => {
+          let rId = t.roundId || 1;
+          if (!roundGroups[rId]) roundGroups[rId] = [];
+          roundGroups[rId].push(t);
         });
 
         Object.keys(roundGroups).forEach(rId => {
@@ -1120,17 +1154,21 @@
           group.sort((a, b) => a.expiredAt - b.expiredAt);
 
           group.forEach((t, index) => {
+            if (!t.ranks) t.ranks = {};
+            let rankVal;
             if (index === 0) {
-              t.finalRank = 1;
+              rankVal = 1;
             } else {
               let prevT = group[index - 1];
               let diffSec = Math.abs(t.expiredAt - prevT.expiredAt) / 1000;
+              let prevRank = prevT.ranks[rId] || 1;
               if (diffSec < 30) {
-                t.finalRank = prevT.finalRank;
+                rankVal = prevRank;
               } else {
-                t.finalRank = prevT.finalRank + 1;
+                rankVal = prevRank + 1;
               }
             }
+            t.ranks[rId] = rankVal;
           });
         });
 
@@ -1195,8 +1233,6 @@
         if (hiddenZones.includes(zoneName)) return;
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
-        
-        // ยึดตามลำดับ orderIndex เป็นหลัก (อิสระตามที่คุณจัดหรือที่จัดอัตโนมัติรอบแรก)
         zoneItems.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
         let zoneDiv = document.createElement("div");
@@ -1227,7 +1263,6 @@
         } else {
           zoneItems.forEach(timer => {
             let isActive = timer.endTime !== null && sTime < timer.endTime;
-            let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined && timer.roundId === currentSetRound;
             let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - sTime) / 1000)) : 0;
 
             let m = Math.floor(totalSeconds / 60);
@@ -1243,10 +1278,14 @@
               targetTimeString = `${String(expiredDate.getHours()).padStart(2, "0")}:${String(expiredDate.getMinutes()).padStart(2, "0")}:${String(expiredDate.getSeconds()).padStart(2, "0")}`;
             }
 
-            let rankBadgeHtml = '';
-            if (isExpired) {
-              let badgeColor = getSetColor(timer.roundId);
-              rankBadgeHtml = `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${timer.finalRank}</span>`;
+            let rankBadgesHtml = '';
+            if (timer.ranks) {
+              let sortedRounds = Object.keys(timer.ranks).map(Number).sort((a, b) => a - b);
+              sortedRounds.forEach(rId => {
+                let rRank = timer.ranks[rId];
+                let badgeColor = getSetColor(rId);
+                rankBadgesHtml += `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${rRank}</span>`;
+              });
             }
 
             let isDrawerOpen = activeDrawers[timer.id] ? "show" : "";
@@ -1275,7 +1314,7 @@
                   <span class="timer-label" onclick="makeEditableLabel(${timer.id}, this)" title="คลิกเพื่อแก้ไขชื่อ">${timer.label}</span>
                 </div>
                 <div style="display: flex; gap: 4px; align-items: center;">
-                  ${rankBadgeHtml}
+                  <div class="rank-badges-container">${rankBadgesHtml}</div>
                   <div class="card-actions">
                     <button class="menu-toggle-btn" onclick="toggleDrawer(event, ${timer.id})" title="ปรับเวลา">±</button>
                     <button class="delete-btn" onclick="deleteTimer(${timer.id})">ลบ</button>
