@@ -511,6 +511,16 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // ตัวแปรเทียบเวลาเซิร์ฟเวอร์ (แก้ปัญหาเวลาคอมไม่ตรงกัน)
+    let timeOffset = 0;
+    db.ref('.info/serverTimeOffset').on('value', (snap) => {
+      timeOffset = snap.val() || 0;
+    });
+
+    function getServerTime() {
+      return Date.now() + timeOffset;
+    }
+
     const defaultTimersData = [
       { id: 1, label: "ปั้มเก่า", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 0 },
       { id: 2, label: "ใต้ตึก", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 1 },
@@ -754,7 +764,7 @@
       timersData.push({
         id: Date.now(),
         label: label,
-        endTime: Date.now() + (totalSeconds * 1000),
+        endTime: getServerTime() + (totalSeconds * 1000),
         expiredAt: null,
         finalRank: null,
         roundId: currentSetRound,
@@ -870,11 +880,11 @@
       if (!timer) return;
 
       pushHistory();
-      let now = Date.now();
-      let currentEndTime = timer.endTime && timer.endTime > now ? timer.endTime : now;
+      let sTime = getServerTime();
+      let currentEndTime = timer.endTime && timer.endTime > sTime ? timer.endTime : sTime;
       let newEndTime = currentEndTime + (secondsToAdd * 1000);
 
-      if (newEndTime <= now) {
+      if (newEndTime <= sTime) {
         timer.endTime = null;
         timer.expiredAt = null;
         timer.finalRank = null;
@@ -937,7 +947,7 @@
           let newSeconds = parseTimeInput(val);
           if (newSeconds > 0) {
             timer.roundId = currentSetRound;
-            timer.endTime = Date.now() + (newSeconds * 1000);
+            timer.endTime = getServerTime() + (newSeconds * 1000);
             timer.expiredAt = null;
             timer.finalRank = null;
           }
@@ -1050,10 +1060,12 @@
     function tickClock() {
       if (isEditing || isDragging) return;
 
+      let sTime = getServerTime();
       let stateChanged = false;
+      
       timersData.forEach(timer => {
         if (timer.endTime !== null) {
-          if (Date.now() >= timer.endTime) {
+          if (sTime >= timer.endTime) {
             if (!timer.expiredAt) {
               timer.expiredAt = timer.endTime; 
               stateChanged = true;
@@ -1120,29 +1132,27 @@
         let cardEl = document.querySelector(`.timer-card[data-id='${timer.id}']`);
         if (!cardEl) return;
 
-        let isActive = timer.endTime !== null && Date.now() < timer.endTime;
-        let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - Date.now()) / 1000)) : 0;
+        let isActive = timer.endTime !== null && sTime < timer.endTime;
+        let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - sTime) / 1000)) : 0;
 
         let m = Math.floor(totalSeconds / 60);
         let s = totalSeconds % 60;
         let displayTime = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 
         let targetTimeString = "00:00:00";
-        let expiredTimeString = "00:00:00";
-        
         if (isActive) {
           let endDate = new Date(timer.endTime);
           targetTimeString = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}:${String(endDate.getSeconds()).padStart(2, "0")}`;
         } else if (timer.expiredAt !== null) {
           let expiredDate = new Date(timer.expiredAt);
-          expiredTimeString = `${String(expiredDate.getHours()).padStart(2, "0")}:${String(expiredDate.getMinutes()).padStart(2, "0")}:${String(expiredDate.getSeconds()).padStart(2, "0")}`;
+          targetTimeString = `${String(expiredDate.getHours()).padStart(2, "0")}:${String(expiredDate.getMinutes()).padStart(2, "0")}:${String(expiredDate.getSeconds()).padStart(2, "0")}`;
         }
 
         let displayEl = cardEl.querySelector('.timer-display');
         let targetEl = cardEl.querySelector('.target-time');
         
         if (displayEl) displayEl.innerText = isActive ? displayTime : '00:00';
-        if (targetEl) targetEl.innerText = isActive ? targetTimeString : expiredTimeString;
+        if (targetEl) targetEl.innerText = targetTimeString;
 
         cardEl.className = "timer-card";
         if (isActive) {
@@ -1168,22 +1178,15 @@
       let zonesContainer = document.getElementById("zonesContainer");
       zonesContainer.innerHTML = "";
 
+      let sTime = getServerTime();
+
       zonesData.forEach(zoneName => {
         if (hiddenZones.includes(zoneName)) return;
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        zoneItems.sort((a, b) => {
-          let aActive = a.endTime !== null && Date.now() < a.endTime;
-          let bActive = b.endTime !== null && Date.now() < b.endTime;
-
-          if (aActive && bActive) return a.endTime - b.endTime;
-          if (aActive && !bActive) return -1;
-          if (!aActive && bActive) return 1;
-
-          if (a.finalRank !== null && b.finalRank !== null) return a.finalRank - b.finalRank;
-          return (a.orderIndex || 0) - (b.orderIndex || 0);
-        });
+        // จัดเรียงตาม orderIndex ที่ผู้ใช้กำหนดเอง (อิสระ ไม่บังคับสลับตำแหน่ง)
+        zoneItems.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
         let zoneDiv = document.createElement("div");
         zoneDiv.className = "zone-section";
@@ -1212,9 +1215,9 @@
           listDiv.innerHTML = '<p style="text-align:center; color:#888; margin: 10px 0; font-size: 14px;">ไม่มีรายการ</p>';
         } else {
           zoneItems.forEach(timer => {
-            let isActive = timer.endTime !== null && Date.now() < timer.endTime;
+            let isActive = timer.endTime !== null && sTime < timer.endTime;
             let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined;
-            let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - Date.now()) / 1000)) : 0;
+            let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - sTime) / 1000)) : 0;
 
             let m = Math.floor(totalSeconds / 60);
             let s = totalSeconds % 60;
