@@ -111,21 +111,22 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-    .settings-btn {
+    .settings-btn, .undo-btn {
       background: #343a40;
       color: white;
       border: none;
       width: 36px;
       height: 36px;
       border-radius: 6px;
-      font-size: 18px;
+      font-size: 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: background 0.2s;
     }
-    .settings-btn:hover { background: #23272b; }
+    .settings-btn:hover, .undo-btn:hover { background: #23272b; }
+    .undo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .set-indicator { font-size: 15px; font-weight: bold; }
     .btn-group {
@@ -461,6 +462,7 @@
     <div class="control-panel" style="margin-top: 5px;">
       <div class="left-controls">
         <button class="settings-btn" onclick="openSettingsModal()" title="ตั้งค่าการแสดงผลโซน">⚙️</button>
+        <button class="undo-btn" id="undoBtn" onclick="undoAction()" title="ย้อนกลับ (Ctrl + Z)" disabled>↩️</button>
         <span class="set-indicator" id="setIndicatorText">📦 รอบที่ 1</span>
       </div>
       <div class="btn-group">
@@ -536,6 +538,53 @@
     let isDragging = false;
     let activeDrawers = {};
 
+    // ระบบประวัติ Undo (เก็บสูงสุด 20 ขั้นตอน)
+    let undoStack = [];
+    const MAX_HISTORY = 20;
+
+    function pushHistory() {
+      let currentState = {
+        timers: JSON.parse(JSON.stringify(timersData)),
+        zones: JSON.parse(JSON.stringify(zonesData)),
+        round: currentSetRound
+      };
+      undoStack.push(currentState);
+      if (undoStack.length > MAX_HISTORY) {
+        undoStack.shift();
+      }
+      updateUndoButtonState();
+    }
+
+    function updateUndoButtonState() {
+      let btn = document.getElementById("undoBtn");
+      if (btn) {
+        btn.disabled = undoStack.length === 0;
+      }
+    }
+
+    function undoAction() {
+      if (undoStack.length === 0) return;
+      let prevState = undoStack.pop();
+      timersData = prevState.timers;
+      zonesData = prevState.zones;
+      currentSetRound = prevState.round;
+      
+      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      saveDataToFirebase();
+      renderApp(true);
+      updateUndoButtonState();
+    }
+
+    // รองรับคีย์ลัด Ctrl + Z
+    window.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (!isEditing && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          undoAction();
+        }
+      }
+    });
+
     function toggleTheme() {
       let currentTheme = document.body.getAttribute("data-theme");
       let newTheme = currentTheme === "dark" ? "light" : "dark";
@@ -562,8 +611,11 @@
       if (savedHidden) hiddenZones = JSON.parse(savedHidden);
     }
 
+    let isInitializingFromFirebase = false;
+
     function initFirebaseSync() {
       db.ref('app_state').on('value', (snapshot) => {
+        if (isInitializingFromFirebase) return;
         let data = snapshot.val();
         if (data) {
           timersData = data.timers || JSON.parse(JSON.stringify(defaultTimersData));
@@ -578,23 +630,32 @@
           timersData = JSON.parse(JSON.stringify(defaultTimersData));
           zonesData = JSON.parse(JSON.stringify(defaultZones));
           currentSetRound = 1;
-          saveData();
+          saveDataToFirebase();
         }
         document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
         renderApp(true);
       });
     }
 
-    function saveData() {
+    function saveDataToFirebase() {
+      isInitializingFromFirebase = true;
       db.ref('app_state').set({
         timers: timersData,
         zones: zonesData,
         round: currentSetRound
+      }).then(() => {
+        isInitializingFromFirebase = false;
       });
+    }
+
+    function saveData() {
+      pushHistory();
+      saveDataToFirebase();
     }
 
     function resetTimersData() {
       if (confirm("คุณต้องการรีเซ็ตเวลาทั้งหมดโดยคงชื่อสถานที่และโซนไว้ใช่หรือไม่?")) {
+        pushHistory();
         currentSetRound = 1;
         activeDrawers = {};
         timersData.forEach(t => {
@@ -603,7 +664,7 @@
           t.finalRank = null;
           t.roundId = 1;
         });
-        saveData();
+        saveDataToFirebase();
         renderApp(true);
       }
     }
@@ -643,19 +704,22 @@
     }
 
     function startNewSet() {
+      pushHistory();
       currentSetRound++;
       document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
-      saveData();
+      saveDataToFirebase();
     }
 
     function startPrevSet() {
       if (currentSetRound > 1) {
+        pushHistory();
         currentSetRound--;
       } else {
         alert("นี่คือรอบแรกสุดแล้ว");
+        return;
       }
       document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -694,6 +758,8 @@
         return;
       }
 
+      pushHistory();
+
       let zoneItems = timersData.filter(t => t.zone === zone);
       let maxOrder = zoneItems.length > 0 ? Math.max(...zoneItems.map(t => t.orderIndex || 0)) + 1 : 0;
 
@@ -712,14 +778,15 @@
       timeInput.value = "";
       labelInput.focus();
 
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
     function deleteTimer(id) {
+      pushHistory();
       delete activeDrawers[id];
       timersData = timersData.filter(t => t.id !== id);
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -734,8 +801,9 @@
         return;
       }
 
+      pushHistory();
       zonesData.push(zoneName);
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -745,11 +813,12 @@
         return;
       }
       if (confirm(`คุณต้องการลบโซน "${zoneName}" หรือไม่? (สถานที่ในโซนนี้จะถูกลบไปด้วย)`)) {
+        pushHistory();
         zonesData = zonesData.filter(z => z !== zoneName);
         timersData = timersData.filter(t => t.zone !== zoneName);
         hiddenZones = hiddenZones.filter(z => z !== zoneName);
         localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
-        saveData();
+        saveDataToFirebase();
         renderApp(true);
       }
     }
@@ -770,6 +839,7 @@
           } else {
             let index = zonesData.indexOf(oldZoneName);
             if (index !== -1) {
+              pushHistory();
               zonesData[index] = newZoneName;
               timersData.forEach(t => {
                 if (t.zone === oldZoneName) t.zone = newZoneName;
@@ -778,7 +848,7 @@
                 hiddenZones = hiddenZones.map(z => z === oldZoneName ? newZoneName : z);
                 localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
               }
-              saveData();
+              saveDataToFirebase();
             }
           }
         }
@@ -816,6 +886,8 @@
       let timer = timersData.find(t => t.id === id);
       if (!timer) return;
 
+      pushHistory();
+
       let now = Date.now();
       let currentEndTime = timer.endTime && timer.endTime > now ? timer.endTime : now;
       let newEndTime = currentEndTime + (secondsToAdd * 1000);
@@ -831,7 +903,7 @@
         timer.finalRank = null;
       }
 
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -840,15 +912,20 @@
       let timer = timersData.find(t => t.id === id);
       if (!timer) return;
 
+      let oldLabel = timer.label;
       let input = document.createElement("input");
       input.type = "text";
-      input.value = timer.label;
+      input.value = oldLabel;
       input.className = "editable-input";
 
       input.onblur = function() {
-        timer.label = input.value.trim() || timer.label;
+        let newLabel = input.value.trim() || oldLabel;
+        if (newLabel !== oldLabel) {
+          pushHistory();
+          timer.label = newLabel;
+          saveDataToFirebase();
+        }
         isEditing = false;
-        saveData();
         renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
@@ -863,17 +940,14 @@
       let timer = timersData.find(t => t.id === id);
       if (!timer) return;
 
-      let remainingSec = timer.endTime && timer.endTime > Date.now() ? Math.max(0, Math.floor((timer.endTime - Date.now()) / 1000)) : 0;
-      let currentMinSec = remainingSec > 0 ? (Math.floor(remainingSec / 60) + ":" + String(remainingSec % 60).padStart(2, "0")) : "";
-
       let input = document.createElement("input");
       input.type = "text";
-      input.value = currentMinSec;
       input.className = "editable-input";
       input.placeholder = "1:30 หรือ 90";
 
       input.onblur = function() {
         let val = input.value.trim();
+        pushHistory();
         if (val === "" || val === "0" || val === "00:00") {
           timer.endTime = null;
           timer.expiredAt = null;
@@ -889,7 +963,7 @@
           }
         }
         isEditing = false;
-        saveData();
+        saveDataToFirebase();
         renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
@@ -923,6 +997,8 @@
       let draggedTimer = timersData.find(t => t.id == draggedCardId);
       if (!draggedTimer) return;
 
+      pushHistory();
+
       draggedTimer.zone = targetZone;
 
       let zoneListEl = e.currentTarget.querySelector('.timer-list');
@@ -936,7 +1012,7 @@
 
       isDragging = false;
       draggedCardId = null;
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -975,6 +1051,8 @@
       if (!touchCard) return;
       touchCard.classList.remove('dragging');
       
+      pushHistory();
+
       let zoneListEl = touchCard.closest('.timer-list');
       if (zoneListEl) {
         let zoneDiv = zoneListEl.closest('.zone-section');
@@ -994,7 +1072,7 @@
       touchCard = null;
       isDragging = false;
       draggedCardId = null;
-      saveData();
+      saveDataToFirebase();
       renderApp(true);
     }
 
@@ -1062,7 +1140,7 @@
             unrankedGroup[i].finalRank = currentRank;
           }
         });
-        saveData();
+        saveDataToFirebase();
         renderApp(true);
         return;
       }
@@ -1123,7 +1201,6 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // จัดเรียงการแสดงผล: เวลานับถอยหลังเหลือน้อยไปมากไว้บนสุด
         zoneItems.sort((a, b) => {
           let aActive = a.endTime !== null && Date.now() < a.endTime;
           let bActive = b.endTime !== null && Date.now() < b.endTime;
