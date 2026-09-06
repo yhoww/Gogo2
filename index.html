@@ -771,11 +771,32 @@
         orderIndex: maxOrder
       });
 
+      // จัดเรียงลำดับให้อัตโนมัติทันทีตามเวลาที่ใกล้จะหมดก่อน เมื่อมีการใส่เวลาใหม่
+      autoSortZoneByTime(zone);
+
       labelInput.value = "";
       timeInput.value = "";
       labelInput.focus();
       saveDataToFirebase();
       renderApp(true);
+    }
+
+    function autoSortZoneByTime(zoneName) {
+      let sTime = getServerTime();
+      let zoneItems = timersData.filter(t => t.zone === zoneName);
+      
+      zoneItems.sort((a, b) => {
+        let aActive = a.endTime !== null && sTime < a.endTime;
+        let bActive = b.endTime !== null && sTime < b.endTime;
+        if (aActive && bActive) return a.endTime - b.endTime;
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        return (a.orderIndex || 0) - (b.orderIndex || 0);
+      });
+
+      zoneItems.forEach((t, idx) => {
+        t.orderIndex = idx;
+      });
     }
 
     function deleteTimer(id) {
@@ -893,6 +914,7 @@
         timer.expiredAt = null;
         timer.finalRank = null;
       }
+      autoSortZoneByTime(timer.zone);
       saveDataToFirebase();
       renderApp(true);
     }
@@ -951,6 +973,7 @@
             timer.finalRank = null;
           }
         }
+        autoSortZoneByTime(timer.zone);
         isEditing = false;
         saveDataToFirebase();
         renderApp(true);
@@ -1087,7 +1110,6 @@
 
       if (stateChanged) {
         let roundGroups = {};
-        // จัดกลุ่มตามรอบ (roundId) แยกกันอิสระอย่างถูกต้อง
         timersData.filter(t => t.expiredAt !== null && t.roundId === currentSetRound).forEach(t => {
           if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
           roundGroups[t.roundId].push(t);
@@ -1095,7 +1117,6 @@
 
         Object.keys(roundGroups).forEach(rId => {
           let group = roundGroups[rId];
-          // เรียงตามเวลาที่หมดจริง (expiredAt) จากน้อยไปมาก
           group.sort((a, b) => a.expiredAt - b.expiredAt);
 
           group.forEach((t, index) => {
@@ -1104,7 +1125,6 @@
             } else {
               let prevT = group[index - 1];
               let diffSec = Math.abs(t.expiredAt - prevT.expiredAt) / 1000;
-              // ถ้าหมดไล่เลี่ยกันไม่เกิน 30 วินาที ให้ใช้อันดับเดียวกัน
               if (diffSec < 30) {
                 t.finalRank = prevT.finalRank;
               } else {
@@ -1176,7 +1196,7 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // ล็อกอิสระ: เรียงตาม orderIndex ที่ผู้ใช้ลากวางเอง ไม่บังคับดีดสลับตำแหน่งอัตโนมัติ
+        // ยึดตามลำดับ orderIndex เป็นหลัก (อิสระตามที่คุณจัดหรือที่จัดอัตโนมัติรอบแรก)
         zoneItems.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
         let zoneDiv = document.createElement("div");
@@ -1207,7 +1227,6 @@
         } else {
           zoneItems.forEach(timer => {
             let isActive = timer.endTime !== null && sTime < timer.endTime;
-            // แสดงป้ายอันดับเฉพาะรายการที่อยู่ในรอบปัจจุบัน (currentSetRound)
             let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined && timer.roundId === currentSetRound;
             let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - sTime) / 1000)) : 0;
 
