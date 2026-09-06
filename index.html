@@ -511,7 +511,6 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ตัวแปรเทียบเวลาเซิร์ฟเวอร์ (แก้ปัญหาเวลาคอมไม่ตรงกัน)
     let timeOffset = 0;
     db.ref('.info/serverTimeOffset').on('value', (snap) => {
       timeOffset = snap.val() || 0;
@@ -1088,41 +1087,33 @@
 
       if (stateChanged) {
         let roundGroups = {};
-        timersData.filter(t => t.expiredAt !== null).forEach(t => {
+        // จัดกลุ่มตามรอบ (roundId) แยกกันอิสระอย่างถูกต้อง
+        timersData.filter(t => t.expiredAt !== null && t.roundId === currentSetRound).forEach(t => {
           if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
           roundGroups[t.roundId].push(t);
         });
 
         Object.keys(roundGroups).forEach(rId => {
           let group = roundGroups[rId];
-          let unrankedGroup = group.filter(t => t.finalRank === null);
-          unrankedGroup.sort((a, b) => a.expiredAt - b.expiredAt);
+          // เรียงตามเวลาที่หมดจริง (expiredAt) จากน้อยไปมาก
+          group.sort((a, b) => a.expiredAt - b.expiredAt);
 
-          let maxExistingRank = 0;
-          let lastExpiredAt = 0;
-          group.forEach(t => {
-            if (t.finalRank !== null) {
-              if (t.finalRank > maxExistingRank) maxExistingRank = t.finalRank;
-              if (t.expiredAt > lastExpiredAt) lastExpiredAt = t.expiredAt;
-            }
-          });
-
-          let currentRank = maxExistingRank > 0 ? maxExistingRank + 1 : 1;
-          for (let i = 0; i < unrankedGroup.length; i++) {
-            if (maxExistingRank === 0 && i === 0) {
-              currentRank = 1;
+          group.forEach((t, index) => {
+            if (index === 0) {
+              t.finalRank = 1;
             } else {
-              let prevTime = i === 0 ? lastExpiredAt : unrankedGroup[i-1].expiredAt;
-              let diffSeconds = Math.abs(unrankedGroup[i].expiredAt - prevTime) / 1000;
-              if (diffSeconds < 30) {
-                currentRank = i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank;
+              let prevT = group[index - 1];
+              let diffSec = Math.abs(t.expiredAt - prevT.expiredAt) / 1000;
+              // ถ้าหมดไล่เลี่ยกันไม่เกิน 30 วินาที ให้ใช้อันดับเดียวกัน
+              if (diffSec < 30) {
+                t.finalRank = prevT.finalRank;
               } else {
-                currentRank = (i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank) + 1;
+                t.finalRank = prevT.finalRank + 1;
               }
             }
-            unrankedGroup[i].finalRank = currentRank;
-          }
+          });
         });
+
         saveDataToFirebase();
         renderApp(true);
         return;
@@ -1185,7 +1176,7 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // จัดเรียงตาม orderIndex ที่ผู้ใช้กำหนดเอง (อิสระ ไม่บังคับสลับตำแหน่ง)
+        // ล็อกอิสระ: เรียงตาม orderIndex ที่ผู้ใช้ลากวางเอง ไม่บังคับดีดสลับตำแหน่งอัตโนมัติ
         zoneItems.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
 
         let zoneDiv = document.createElement("div");
@@ -1216,7 +1207,8 @@
         } else {
           zoneItems.forEach(timer => {
             let isActive = timer.endTime !== null && sTime < timer.endTime;
-            let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined;
+            // แสดงป้ายอันดับเฉพาะรายการที่อยู่ในรอบปัจจุบัน (currentSetRound)
+            let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined && timer.roundId === currentSetRound;
             let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - sTime) / 1000)) : 0;
 
             let m = Math.floor(totalSeconds / 60);
