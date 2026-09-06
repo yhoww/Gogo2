@@ -1306,11 +1306,14 @@
             }
 
             let rankBadgesHtml = '';
-            // แสดงผลเฉพาะอันดับของรอบปัจจุบันที่กำลังเปิดดูอยู่เท่านั้น (currentSetRound)
-            if (timer.ranks && timer.ranks[currentSetRound] !== undefined) {
-              let rRank = timer.ranks[currentSetRound];
-              let badgeColor = getSetColor(currentSetRound);
-              rankBadgesHtml = `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${rRank}</span>`;
+            if (timer.ranks) {
+              let sortedRounds = Object.keys(timer.ranks).map(Number).sort((a, b) => b - a);
+              if (sortedRounds.length > 0) {
+                let latestRoundId = sortedRounds[0];
+                let rRank = timer.ranks[latestRoundId];
+                let badgeColor = getSetColor(latestRoundId);
+                rankBadgesHtml = `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${rRank}</span>`;
+              }
             }
 
             let isDrawerOpen = activeDrawers[timer.id] ? "show" : "";
