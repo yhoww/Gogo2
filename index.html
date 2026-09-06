@@ -1207,21 +1207,41 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // จัดเรียงเฉพาะตอนเรนเดอร์ใหม่: รอบใหม่กว่าอยู่บนสุด, ถ้าอยู่รอบเดียวกัน เรียงตามเวลาหมดจากน้อยไปมาก
+        // จัดเรียงลำดับใหม่ตามเงื่อนไขที่สมบูรณ์
         zoneItems.sort((a, b) => {
+          let isActiveA = a.endTime !== null && sTime < a.endTime ? 1 : 0;
+          let isActiveB = b.endTime !== null && sTime < b.endTime ? 1 : 0;
+
+          // 1. ถ้ากำลังนับถอยหลังอยู่ทั้งคู่ ให้นำมาเรียงตามเวลาที่จะหมดก่อน (endTime น้อยกว่าอยู่บนสุด)
+          if (isActiveA === 1 && isActiveB === 1) {
+            return a.endTime - b.endTime;
+          }
+
+          // 2. ถ้ามีตัวใดตัวหนึ่งกำลังนับถอยหลัง ให้ตัวที่กำลังนับอยู่ขึ้นไปอยู่ด้านบนเสมอ
+          if (isActiveA !== isActiveB) {
+            return isActiveB - isActiveA;
+          }
+
+          // 3. ถ้าหมดเวลาแล้วทั้งคู่ ให้นำมาเรียงตามเวลาที่หมดก่อน (expiredAt น้อยกว่าอยู่บนสุด ทะลุกรอบได้)
+          let isExpiredA = a.expiredAt !== null ? 1 : 0;
+          let isExpiredB = b.expiredAt !== null ? 1 : 0;
+
+          if (isExpiredA === 1 && isExpiredB === 1) {
+            return a.expiredAt - b.expiredAt;
+          }
+
+          if (isExpiredA !== isExpiredB) {
+            return isExpiredB - isExpiredA;
+          }
+
+          // 4. ถ้าไม่ได้นับถอยหลังและยังไม่หมดเวลา ให้แยกรอบ (รอบใหม่กว่าอยู่บนสุด)
           let roundA = a.roundId || 1;
           let roundB = b.roundId || 1;
           if (roundA !== roundB) {
-            return roundB - roundA; // รอบใหม่กว่าอยู่บน
+            return roundB - roundA;
           }
 
-          let timeA = a.expiredAt !== null ? a.expiredAt : (a.endTime !== null ? a.endTime : Number.MAX_SAFE_INTEGER);
-          let timeB = b.expiredAt !== null ? b.expiredAt : (b.endTime !== null ? b.endTime : Number.MAX_SAFE_INTEGER);
-          
-          if (timeA !== timeB) {
-            return timeA - timeB; // เวลาที่หมดก่อนอยู่บน
-          }
-
+          // 5. สถานะอื่นๆ เรียงตามลำดับที่คุณลากวางอิสระ (orderIndex)
           return (a.orderIndex || 0) - (b.orderIndex || 0);
         });
 
