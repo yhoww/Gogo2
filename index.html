@@ -741,6 +741,7 @@
       currentSetRound++;
       updateRoundIndicatorUI();
       saveDataToFirebase();
+      renderApp(true);
     }
 
     function startPrevSet() {
@@ -795,10 +796,12 @@
 
       let existingTimer = timersData.find(t => t.label === label && t.zone === zone);
       if (existingTimer) {
+        existingTimer.roundId = currentSetRound;
         existingTimer.endTime = getServerTime() + (totalSeconds * 1000);
         existingTimer.expiredAt = null;
-        if (existingTimer.ranks) delete existingTimer.ranks[currentSetRound];
-        existingTimer.roundId = currentSetRound;
+        if (existingTimer.ranks) {
+          delete existingTimer.ranks[currentSetRound];
+        }
       } else {
         timersData.push({
           id: Date.now(),
@@ -1303,13 +1306,11 @@
             }
 
             let rankBadgesHtml = '';
-            if (timer.ranks) {
-              let sortedRounds = Object.keys(timer.ranks).map(Number).sort((a, b) => a - b);
-              sortedRounds.forEach(rId => {
-                let rRank = timer.ranks[rId];
-                let badgeColor = getSetColor(rId);
-                rankBadgesHtml += `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${rRank}</span>`;
-              });
+            // แสดงผลเฉพาะอันดับของรอบปัจจุบันที่กำลังเปิดดูอยู่เท่านั้น (currentSetRound)
+            if (timer.ranks && timer.ranks[currentSetRound] !== undefined) {
+              let rRank = timer.ranks[currentSetRound];
+              let badgeColor = getSetColor(currentSetRound);
+              rankBadgesHtml = `<span class="rank-badge" style="background-color: ${badgeColor};">อันดับที่ ${rRank}</span>`;
             }
 
             let isDrawerOpen = activeDrawers[timer.id] ? "show" : "";
