@@ -793,16 +793,24 @@
       let zoneItems = timersData.filter(t => t.zone === zone);
       let maxOrder = zoneItems.length > 0 ? Math.max(...zoneItems.map(t => t.orderIndex || 0)) + 1 : 0;
 
-      timersData.push({
-        id: Date.now(),
-        label: label,
-        endTime: getServerTime() + (totalSeconds * 1000),
-        expiredAt: null,
-        ranks: {},
-        roundId: currentSetRound,
-        zone: zone,
-        orderIndex: maxOrder
-      });
+      let existingTimer = timersData.find(t => t.label === label && t.zone === zone);
+      if (existingTimer) {
+        existingTimer.endTime = getServerTime() + (totalSeconds * 1000);
+        existingTimer.expiredAt = null;
+        if (existingTimer.ranks) delete existingTimer.ranks[currentSetRound];
+        existingTimer.roundId = currentSetRound;
+      } else {
+        timersData.push({
+          id: Date.now(),
+          label: label,
+          endTime: getServerTime() + (totalSeconds * 1000),
+          expiredAt: null,
+          ranks: {},
+          roundId: currentSetRound,
+          zone: zone,
+          orderIndex: maxOrder
+        });
+      }
 
       autoSortZoneByTime(zone);
 
@@ -1169,6 +1177,22 @@
               }
             }
             t.ranks[rId] = rankVal;
+          });
+        });
+
+        let zoneNames = [...new Set(timersData.map(t => t.zone))];
+        zoneNames.forEach(zoneName => {
+          let zoneItems = timersData.filter(t => t.zone === zoneName);
+          zoneItems.sort((a, b) => {
+            if (a.expiredAt !== null && b.expiredAt !== null) {
+              return a.expiredAt - b.expiredAt;
+            }
+            if (a.expiredAt !== null && b.expiredAt === null) return -1;
+            if (a.expiredAt === null && b.expiredAt !== null) return 1;
+            return (a.orderIndex || 0) - (b.orderIndex || 0);
+          });
+          zoneItems.forEach((t, idx) => {
+            t.orderIndex = idx;
           });
         });
 
