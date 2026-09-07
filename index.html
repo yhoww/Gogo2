@@ -413,7 +413,6 @@
       box-sizing: border-box;
     }
 
-    /* Modal ตั้งค่า */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -478,7 +477,7 @@
         <button class="undo-btn" id="undoBtn" onclick="undoAction()" title="ย้อนกลับ (Ctrl + Z)" disabled>↩️</button>
         <div class="set-indicator-wrapper">
           <span class="round-color-dot" id="roundColorDot"></span>
-          <span class="set-indicator" id="setIndicatorText">📦 รอบที่ 1</span>
+          <span class="set-indicator" id="setIndicatorText">📦 รอบที่ 1[cite: 1]</span>
         </div>
       </div>
       <div class="btn-group">
@@ -491,7 +490,7 @@
     <div class="input-section">
       <div class="input-row">
         <input type="text" id="labelInput" placeholder="ชื่อสถานที่" onkeydown="checkEnter(event)">
-        <input type="text" id="timeInput" placeholder="เวลา (เช่น 1:30)" onkeydown="checkEnter(event)">
+        <input type="text" id="timeInput" placeholder="เวลา (เช่น 1.30)" onkeydown="checkEnter(event)">
         <select id="zoneSelect"></select>
         <button class="add-btn" onclick="addTimer()">เพิ่ม</button>
         <button class="add-zone-btn" onclick="addZone()">+ Zone</button>
@@ -501,7 +500,6 @@
     <div id="zonesContainer" class="zones-grid"></div>
   </div>
 
-  <!-- Modal ตั้งค่าซ่อน/แสดง Zone -->
   <div class="modal-overlay" id="settingsModal">
     <div class="modal-content">
       <div class="modal-header">
@@ -680,11 +678,6 @@
       });
     }
 
-    function saveData() {
-      pushHistory();
-      saveDataToFirebase();
-    }
-
     function resetTimersData() {
       if (confirm("คุณต้องการรีเซ็ตเวลาทั้งหมดโดยคงชื่อสถานที่และโซนไว้ใช่หรือไม่?")) {
         pushHistory();
@@ -750,11 +743,12 @@
 
     function parseTimeInput(input) {
       let totalSeconds = 0;
-      if (input.includes(":")) {
-        let parts = input.split(":");
+      let normalizedInput = input.replace(".", ":");
+      if (normalizedInput.includes(":")) {
+        let parts = normalizedInput.split(":");
         totalSeconds = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
       } else {
-        totalSeconds = parseInt(input) || 0;
+        totalSeconds = parseInt(normalizedInput) || 0;
       }
       return totalSeconds;
     }
@@ -955,12 +949,12 @@
       let input = document.createElement("input");
       input.type = "text";
       input.className = "editable-input";
-      input.placeholder = "1:30 หรือ 90";
+      input.placeholder = "1.30 หรือ 90";
 
       input.onblur = function() {
         let val = input.value.trim();
         pushHistory();
-        if (val === "" || val === "0" || val === "00:00") {
+        if (val === "" || val === "0" || val === "0.00" || val === "00:00") {
           timer.endTime = null;
           timer.expiredAt = null;
           timer.finalRank = null;
@@ -1207,41 +1201,36 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // จัดเรียงลำดับใหม่ตามเงื่อนไขที่สมบูรณ์
+        // กติกาการเรียงลำดับใหม่:
+        // 1. สถานะที่กำลังนับเวลาถอยหลังอยู่ (Active) ต้องอยู่ด้านบนสุดเสมอ (เรียงตามเวลาที่จะหมดก่อนขึ้นก่อน)
+        // 2. สถานะอื่นๆ เรียงตามระบบรอบ (รอบใหม่กว่าอยู่บน) และตามเวลาหมดเวลาปกติ
         zoneItems.sort((a, b) => {
-          let isActiveA = a.endTime !== null && sTime < a.endTime ? 1 : 0;
-          let isActiveB = b.endTime !== null && sTime < b.endTime ? 1 : 0;
+          let aActive = a.endTime !== null && sTime < a.endTime;
+          let bActive = b.endTime !== null && sTime < b.endTime;
 
-          // 1. ถ้ากำลังนับถอยหลังอยู่ทั้งคู่ ให้นำมาเรียงตามเวลาที่จะหมดก่อน (endTime น้อยกว่าอยู่บนสุด)
-          if (isActiveA === 1 && isActiveB === 1) {
+          // ถ้าอันนึง Active อีกอันไม่ Active -> ให้ Active ขึ้นก่อนเสมอ
+          if (aActive && !bActive) return -1;
+          if (!aActive && bActive) return 1;
+
+          // ถ้า Active ทั้งคู่ -> เรียงตามเวลาที่กำลังนับถอยหลัง (ใกล้หมดที่สุดอยู่บนสุด)
+          if (aActive && bActive) {
             return a.endTime - b.endTime;
           }
 
-          // 2. ถ้ามีตัวใดตัวหนึ่งกำลังนับถอยหลัง ให้ตัวที่กำลังนับอยู่ขึ้นไปอยู่ด้านบนเสมอ
-          if (isActiveA !== isActiveB) {
-            return isActiveB - isActiveA;
-          }
-
-          // 3. ถ้าหมดเวลาแล้วทั้งคู่ ให้นำมาเรียงตามเวลาที่หมดก่อน (expiredAt น้อยกว่าอยู่บนสุด ทะลุกรอบได้)
-          let isExpiredA = a.expiredAt !== null ? 1 : 0;
-          let isExpiredB = b.expiredAt !== null ? 1 : 0;
-
-          if (isExpiredA === 1 && isExpiredB === 1) {
-            return a.expiredAt - b.expiredAt;
-          }
-
-          if (isExpiredA !== isExpiredB) {
-            return isExpiredB - isExpiredA;
-          }
-
-          // 4. ถ้าไม่ได้นับถอยหลังและยังไม่หมดเวลา ให้แยกรอบ (รอบใหม่กว่าอยู่บนสุด)
+          // ถ้าไม่ Active ทั้งคู่ -> เรียงตามรอบ (รอบใหม่กว่าอยู่บน)
           let roundA = a.roundId || 1;
           let roundB = b.roundId || 1;
           if (roundA !== roundB) {
             return roundB - roundA;
           }
 
-          // 5. สถานะอื่นๆ เรียงตามลำดับที่คุณลากวางอิสระ (orderIndex)
+          // ถ้าอยู่รอบเดียวกัน เรียงตามเวลาที่หมดไปแล้วหรือลำดับปกติ
+          let timeA = a.expiredAt !== null ? a.expiredAt : Number.MAX_SAFE_INTEGER;
+          let timeB = b.expiredAt !== null ? b.expiredAt : Number.MAX_SAFE_INTEGER;
+          if (timeA !== timeB) {
+            return timeA - timeB;
+          }
+
           return (a.orderIndex || 0) - (b.orderIndex || 0);
         });
 
