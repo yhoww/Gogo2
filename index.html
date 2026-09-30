@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>💸</title>
+  <title>💸[cite: 1]</title>
   
   <!-- Firebase App & Realtime Database SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -526,12 +526,23 @@
     const db = firebase.database();
 
     let timeOffset = 0;
+    let lastServerTime = 0;
+
     db.ref('.info/serverTimeOffset').on('value', (snap) => {
-      timeOffset = snap.val() || 0;
+      let newOffset = snap.val() || 0;
+      if (Math.abs(newOffset - timeOffset) > 2000 && timeOffset !== 0) {
+        return;
+      }
+      timeOffset = newOffset;
     });
 
     function getServerTime() {
-      return Date.now() + timeOffset;
+      let currentEstimate = Date.now() + timeOffset;
+      if (currentEstimate < lastServerTime) {
+        return lastServerTime;
+      }
+      lastServerTime = currentEstimate;
+      return currentEstimate;
     }
 
     const defaultTimersData = [
@@ -1201,30 +1212,23 @@
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
         
-        // กติกาการเรียงลำดับใหม่:
-        // 1. สถานะที่กำลังนับเวลาถอยหลังอยู่ (Active) ต้องอยู่ด้านบนสุดเสมอ (เรียงตามเวลาที่จะหมดก่อนขึ้นก่อน)
-        // 2. สถานะอื่นๆ เรียงตามระบบรอบ (รอบใหม่กว่าอยู่บน) และตามเวลาหมดเวลาปกติ
         zoneItems.sort((a, b) => {
           let aActive = a.endTime !== null && sTime < a.endTime;
           let bActive = b.endTime !== null && sTime < b.endTime;
 
-          // ถ้าอันนึง Active อีกอันไม่ Active -> ให้ Active ขึ้นก่อนเสมอ
           if (aActive && !bActive) return -1;
           if (!aActive && bActive) return 1;
 
-          // ถ้า Active ทั้งคู่ -> เรียงตามเวลาที่กำลังนับถอยหลัง (ใกล้หมดที่สุดอยู่บนสุด)
           if (aActive && bActive) {
             return a.endTime - b.endTime;
           }
 
-          // ถ้าไม่ Active ทั้งคู่ -> เรียงตามรอบ (รอบใหม่กว่าอยู่บน)
           let roundA = a.roundId || 1;
           let roundB = b.roundId || 1;
           if (roundA !== roundB) {
             return roundB - roundA;
           }
 
-          // ถ้าอยู่รอบเดียวกัน เรียงตามเวลาที่หมดไปแล้วหรือลำดับปกติ
           let timeA = a.expiredAt !== null ? a.expiredAt : Number.MAX_SAFE_INTEGER;
           let timeB = b.expiredAt !== null ? b.expiredAt : Number.MAX_SAFE_INTEGER;
           if (timeA !== timeB) {
